@@ -75,6 +75,7 @@ func addTask(texts []string) error {
 			Description: texts[i],
 			Status: "todo",
 			CreatedAt: date,
+			UpdateAt: date,
 		}
 
 		enc := json.NewEncoder(file)
