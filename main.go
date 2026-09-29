@@ -31,10 +31,55 @@ func main() {
 			return
 		}
 		log.Println("tasks saved successfully")
+	case "list":
+		if len(os.Args) != 2 {
+			log.Fatal("invalid arguments")
+		}
+		err := list()
+		if err != nil {
+			log.Fatal(err)
+		}
 	default:
 		log.Fatal(fmt.Errorf("invalid arguments"))
 		return
 	}
+}
+
+func list() error {
+	file, err := os.OpenFile("tasks.jsonl", os.O_RDONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	count, err := countTasks(file)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if count == 0 {
+		fmt.Println("You have no tasks!")
+		return nil
+	}
+	fmt.Printf("You have %d tasks\n", count)
+	file.Seek(0, 3)
+
+	dec := json.NewDecoder(file)
+
+	for {
+		var task Task
+		err = dec.Decode(&task)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Task: %d\n    Description: %s\n    Status: %s\n    Created at: %v\n    Last update at: %v\n", task.Id, task.Description, task.Status, task.CreatedAt.Format("02.01.2006 15:04:05"), task.UpdateAt.Format("02.01.2006 15:04:05"))
+	}
+
+	return nil
 }
 
 func countTasks(data *os.File) (int, error){
