@@ -81,6 +81,41 @@ func main() {
 		}
 
 		log.Printf("task %d delete successfully\n", id)
+
+	case "mark-in-progress":
+		if len(os.Args) != 3 {
+			log.Fatal("invalid arguments")
+			return
+		}
+
+		id, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		err = mark(id, "in-progress")
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+	case "mark-done":
+		if len(os.Args) != 3 {
+			log.Fatal("invalid arguments")
+			return
+		}
+
+		id, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		err = mark(id, "done")
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
 	default:
 		log.Fatal(fmt.Errorf("invalid arguments"))
 		return
@@ -213,6 +248,61 @@ func deleteTask(id int) error{
 		if err != nil {
 			return err
 		}
+	}
+
+	file.Seek(0, 3)
+	temp.Seek(0, 3)
+	file.Truncate(0)
+	
+	if _, err = io.Copy(file, temp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func mark(id int, statusName string) error {
+	file, err := os.OpenFile("tasks.jsonl", os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	temp, err := os.CreateTemp("", "temp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temp.Name())
+	defer temp.Close()
+
+	dec := json.NewDecoder(file)
+	enc := json.NewEncoder(temp)
+
+	updated := false
+	for {
+		var task Task
+		err = dec.Decode(&task)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if task.Id == id {
+			updated = true
+			task.Status = statusName
+			task.UpdateAt = time.Now()
+		}
+
+		err = enc.Encode(task)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !updated {
+		return fmt.Errorf("task not found")
 	}
 
 	file.Seek(0, 3)
