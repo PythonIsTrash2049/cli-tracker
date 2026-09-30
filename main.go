@@ -62,6 +62,25 @@ func main() {
 			return
 		}
 		log.Println("task update successfully")
+	case "delete":
+		if len(os.Args) != 3 {
+			log.Fatal("invalid arguments")
+			return
+		}
+		
+		id, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		err = deleteTask(id)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		log.Printf("task %d delete successfully\n", id)
 	default:
 		log.Fatal(fmt.Errorf("invalid arguments"))
 		return
@@ -85,7 +104,6 @@ func list() error {
 		return nil
 	}
 	fmt.Printf("You have %d tasks\n", count)
-	file.Seek(0, 3)
 
 	dec := json.NewDecoder(file)
 
@@ -160,6 +178,54 @@ func update(id int, text string) error{
 	return nil
 }
 
+func deleteTask(id int) error{
+	file, err := os.OpenFile("tasks.jsonl", os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	temp, err := os.CreateTemp("", "temp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temp.Name())
+	defer temp.Close()
+
+	dec := json.NewDecoder(file)
+	enc := json.NewEncoder(temp)
+
+	for {
+		var task Task
+		err = dec.Decode(&task)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if task.Id == id {
+			continue
+		}
+
+		err = enc.Encode(task)
+		if err != nil {
+			return err
+		}
+	}
+
+	file.Seek(0, 3)
+	temp.Seek(0, 3)
+	file.Truncate(0)
+	
+	if _, err = io.Copy(file, temp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func countTasks(data *os.File) (int, error){
 	dec := json.NewDecoder(data)
 
@@ -175,8 +241,29 @@ func countTasks(data *os.File) (int, error){
 		}
 		count++
 	}
+	data.Seek(0, 3)
 
 	return count, nil
+}
+
+func lastTaskId(file *os.File) (int, error) {
+	dec := json.NewDecoder(file)
+
+	res := 1
+	for {
+		var task Task
+		err := dec.Decode(&task)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		res = task.Id
+	}
+	file.Seek(0, 3)
+
+	return res, nil
 }
 
 func addTask(texts []string) error {
@@ -186,7 +273,7 @@ func addTask(texts []string) error {
 	}
 	defer file.Close()
 
-	numberTasks, err := countTasks(file)
+	numberTasks, err := lastTaskId(file)
 	if err != nil {
 		return err
 	}
