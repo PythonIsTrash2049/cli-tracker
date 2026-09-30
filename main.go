@@ -205,6 +205,7 @@ func addTask(texts []string) error {
 		if err := enc.Encode(task); err != nil {
 			return err
 		}
+		log.Printf("task '%s' get id %d\n", task.Description, task.Id)
 	}
 
 	return nil
