@@ -7,6 +7,7 @@ import (
 	"time"
 	"log"
 	"encoding/json"
+	"strconv"
 )
 
 type Task struct {
@@ -34,11 +35,33 @@ func main() {
 	case "list":
 		if len(os.Args) != 2 {
 			log.Fatal("invalid arguments")
+			return
 		}
+
 		err := list()
 		if err != nil {
 			log.Fatal(err)
+			return
 		}
+
+	case "update":
+		if len(os.Args) != 4 {
+			log.Fatal("invalid arguments")
+			return
+		}
+
+		id, err := strconv.Atoi(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		err = update(id, os.Args[3])
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		log.Println("task update successfully")
 	default:
 		log.Fatal(fmt.Errorf("invalid arguments"))
 		return
@@ -77,6 +100,61 @@ func list() error {
 		}
 
 		fmt.Printf("Task: %d\n    Description: %s\n    Status: %s\n    Created at: %v\n    Last update at: %v\n", task.Id, task.Description, task.Status, task.CreatedAt.Format("02.01.2006 15:04:05"), task.UpdateAt.Format("02.01.2006 15:04:05"))
+	}
+
+	return nil
+}
+
+func update(id int, text string) error{
+	file, err := os.OpenFile("tasks.jsonl", os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	temp, err := os.CreateTemp("", "temp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temp.Name())
+	defer temp.Close()
+
+	dec := json.NewDecoder(file)
+	enc := json.NewEncoder(temp)
+
+	updated := false
+	for {
+		var task Task
+		err = dec.Decode(&task)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if task.Id == id {
+			updated = true
+			task.Description = text
+			task.UpdateAt = time.Now()
+		}
+
+		err = enc.Encode(task)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !updated {
+		return fmt.Errorf("task not found")
+	}
+
+	file.Seek(0, 3)
+	temp.Seek(0, 3)
+	file.Truncate(0)
+	
+	if _, err = io.Copy(file, temp); err != nil {
+		return err
 	}
 
 	return nil
