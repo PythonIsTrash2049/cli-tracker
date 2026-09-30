@@ -33,12 +33,22 @@ func main() {
 		}
 		log.Println("tasks saved successfully")
 	case "list":
-		if len(os.Args) != 2 {
+		if len(os.Args) != 2 && len(os.Args) != 3 {
 			log.Fatal("invalid arguments")
 			return
 		}
 
-		err := list()
+		filter := ""
+		if len(os.Args) == 3 {
+			if os.Args[2] == "done" || os.Args[2] == "todo" || os.Args[2] == "in-progress" {
+				filter = os.Args[2]
+			} else {
+				log.Println("wrong status")
+				return
+			}
+		}
+
+		err := list(filter)
 		if err != nil {
 			log.Fatal(err)
 			return
@@ -122,13 +132,13 @@ func main() {
 	}
 }
 
-func list() error {
+func list(filter string) error {
 	file, err := os.OpenFile("tasks.jsonl", os.O_RDONLY, 0644)
 	if err != nil {
 		return err
 	}
 
-	count, err := countTasks(file)
+	count, err := countTasks(file, filter)
 	if err != nil {
 		return err
 	}
@@ -152,7 +162,9 @@ func list() error {
 			return err
 		}
 
-		fmt.Printf("Task: %d\n    Description: %s\n    Status: %s\n    Created at: %v\n    Last update at: %v\n", task.Id, task.Description, task.Status, task.CreatedAt.Format("02.01.2006 15:04:05"), task.UpdateAt.Format("02.01.2006 15:04:05"))
+		if (filter == "" || filter == task.Status) {
+			fmt.Printf("Task: %d\n    Description: %s\n    Status: %s\n    Created at: %v\n    Last update at: %v\n", task.Id, task.Description, task.Status, task.CreatedAt.Format("02.01.2006 15:04:05"), task.UpdateAt.Format("02.01.2006 15:04:05"))
+		}
 	}
 
 	return nil
@@ -316,7 +328,7 @@ func mark(id int, statusName string) error {
 	return nil
 }
 
-func countTasks(data *os.File) (int, error){
+func countTasks(data *os.File, filter string) (int, error){
 	dec := json.NewDecoder(data)
 
 	count := 0
@@ -329,7 +341,9 @@ func countTasks(data *os.File) (int, error){
 		if err != nil {
 			return 0, err
 		}
-		count++
+		if (filter == "" || filter == v.Status){
+			count++
+		}
 	}
 	data.Seek(0, 3)
 
